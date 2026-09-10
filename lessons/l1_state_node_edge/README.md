@@ -1,0 +1,100 @@
+# L1 - State, Node, Edge：LangGraph 的三个原语
+
+> 官方文档对应页
+> - Graph API: <https://docs.langchain.com/oss/python/langgraph/graph-api>
+> - Use the Graph API: <https://docs.langchain.com/oss/python/langgraph/use-graph-api>
+> - Choosing APIs: <https://docs.langchain.com/oss/python/langgraph/choosing-apis>
+
+## 为什么这三个词放在第一课
+
+LangGraph 把"agent 工作流"拆成三样东西，所有后面的能力（循环、检查点、中断、子图）都只是这三样的组合变形：
+
+| 原语 | 本质 | 一句话职责 |
+|---|---|---|
+| **State** | 一组 **channel**（通道），每个 channel 有自己的合并规则（reducer） | 定义"节点之间能传什么、并发写怎么合并" |
+| **Node** | 一个 `state -> partial_update` 的纯函数 | 读全部状态，只返回自己**想改的 key** |
+| **Edge** | 静态或动态的连线 | 决定下一个 super-step 谁跑、几个节点并行 |
+
+理解的关键在于：**节点不直接改变 state，它只是"提交一份更新"**，由运行时在 super-step 结束时按 reducer 合并。这个间接层是后面所有能力的地基。
+
+## 执行模型：super-step
+
+LangGraph 的调度单位叫 **super-step**（超步），执行循环是：
+
+```
+1. 找到本轮应该跑的节点集合（由 edge 决定，可能多个）
+2. 这些节点并行执行，各自返回一份 partial update
+3. 等全部结束（join），对每个 channel 调用 reducer 合并所有更新
+4. 写入 checkpoint，回到 1，直到没有节点可跑
+```
+
+第 3 步的"等全部结束再合并"叫 **Pregel 式同步屏障**。它带来两个直接后果，本课代码都会亲手验证：
+
+- **同一 super-step 内并发写同一个 channel 会报错**（除非该 channel 有 reducer）——见 `main.py` 的坑 A。
+- **同一 super-step 内的节点互相看不见对方的写入**——它们读到的都是上一轮的状态快照。这是初学者最常见的困惑，亲手验证一次就再也不会记错。
+
+## State 的三种写法
+
+`StateGraph` 接受任意类型作为 schema，实际常用的三种：
+
+| 写法 | 优点 | 代价 | 什么时候用 |
+|---|---|---|---|
+| `TypedDict` | 零开销、最轻、文档示例最多 | 无运行期校验 | 默认选择，性能敏感的图 |
+| `pydantic.BaseModel` | 入口处做类型校验与强制转换 | 递归校验慢；**只有第一个节点入参被校验**，输出不是模型实例 | 输入来自外部/LLM、需要兜底时 |
+| `dataclass` | 有默认值、比 pydantic 快 | 无校验 | 想要"类"的写法但不想付 pydantic 的价 |
+
+> 官方明确提示的 pydantic 限制：输出**不会**是模型实例；运行期校验**只发生在图的第一个节点入参**，后续节点与输出不校验；错误信息里看不出是哪个节点挂的。
+
+## Reducer：这一课真正的主角
+
+```python
+class State(TypedDict):
+    n: int                                              # 无 reducer: 后写覆盖，且并发写会报错
+    log: Annotated[list[str], operator.add]             # 有 reducer: 并发写自动合并
+```
+
+- **没有 reducer 的 channel** 是 `LastValue` 语义：一轮里只能有一个写入者，多个写入者直接 `InvalidUpdateError`。
+- **有 reducer 的 channel** 会把同一轮里每个节点的返回值依次喂给 reducer：`_add([a])`、`_add([b])` → `[a, b]`。
+- reducer 是**无状态的二元函数** `(left, right) -> merged`，框架按节点返回顺序左折叠。
+- 常见 reducer：`operator.add`（列表拼接 / 数字相加）、`operator.or_`（字典合并）、自定义 `def dedupe(l, r)`。
+
+一句话记忆：**"谁写"由 edge 决定，"怎么合"由 reducer 决定。** 并行 fan-out 能不能用，取决于目标 channel 有没有 reducer。
+
+## 三种 schema 分层
+
+`StateGraph(state, input_schema=..., output_schema=...)` 可以给同一个图配三套 schema：
+
+- `input_schema`：调用方**必须**提供的字段（对 LLM/外部输入的第一道关卡）
+- `output_schema`：`invoke()` **返回**哪些字段（内部字段不外泄）
+- 私有 schema：节点自己声明额外的 channel，做节点间私密通信
+
+两个官方反复强调的细节：
+
+1. 节点**能写任意**在图中注册过的 channel，哪怕它的入参 schema 里没有这个 key。
+2. **私有 channel 在 stream 时不会被隐藏**。`invoke()` 只返回 output_schema，但 `stream_mode="values"` 默认吐**全部** channel。要收口就用 `output_keys=[...]`。这是个真实的安全坑：以为私有就没泄露。
+
+## 本课代码要验证的行为
+
+跑一遍就知道了：
+
+```bash
+poetry run python lessons/l1_state_node_edge/main.py
+```
+
+1. `START -> intake -> (style_check ‖ security_check) -> reduce -> END`，两个 check 节点在**同一个 super-step** 里跑，`findings` 由 `operator.add` 合并。
+2. `intake` 里两个节点看到了什么——打印出来证明它们看不到对方。
+3. 故意去掉 `security_check -> reduce` 这条边，看 `reduce` 在只有 style 结果时就跑了（join 语义由**入边**决定，不是自动的）。
+4. 坑 A：两个并发节点写无 reducer 的 channel → `InvalidUpdateError`。
+5. 私有 channel 通过 stream 泄露 → 用 `output_keys` 收口。
+
+## 自己动手（改坏它）
+
+- 把 `findings: Annotated[list[str], operator.add]` 的 `Annotated` 去掉，跑测试，读那条报错信息。
+- 把 `style_check` 和 `security_check` 改成串行（`style_check -> security_check`），观察 super-step 数量的变化。
+- 把 schema 换成 pydantic，传一个错误类型进去，确认报错发生在**第一个节点**而不是 `graph.invoke` 入口。
+
+对应测试：
+
+```bash
+poetry run pytest lessons/l1_state_node_edge -v
+```
