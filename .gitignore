@@ -4,6 +4,10 @@
 .claude/
 .codex/
 
+# Project-specific
+llms.txt
+skills-lock.json
+
 # Python
 __pycache__/
 *.py[cod]
