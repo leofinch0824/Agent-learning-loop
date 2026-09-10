@@ -16,14 +16,14 @@ poetry run pytest lessons/ -v                          # 全部测试
 
 ## 课程地图
 
-| 课 | 主题 | 核心概念 | 状态 |
-|---|---|---|---|
-| **L1** | State / Node / Edge | super-step 执行模型、reducer、fan-out trigger rule | ✅ 完成 |
-| **L2** | 控制流 | 条件边、循环与 `recursion_limit`、`Command`、`Send` | ⏳ 待搭建 |
-| **L3** | 持久化 | checkpointer、`thread_id`、time travel、durability 三档 | ⏳ 待搭建 |
-| **L4** | 中断 | human-in-the-loop、重放语义、`Command(resume=...)` | ⏳ 待搭建 |
-| **L5** | 子图 | 共享/独立 state 翻译、`Command.PARENT`、checkpoint 命名空间 | ⏳ 待搭建 |
-| **L6** | 综合 | 审批 + 崩溃恢复 + 回滚的完整 agent | ⏳ 待搭建 |
+| 课     | 主题                | 核心概念                                                    | 状态      |
+| ------ | ------------------- | ----------------------------------------------------------- | --------- |
+| **L1** | State / Node / Edge | super-step 执行模型、reducer、fan-out trigger rule          | ✅ 完成   |
+| **L2** | 控制流              | 条件边、循环与 `recursion_limit`、`Command`、`Send`         | ⏳ 待搭建 |
+| **L3** | 持久化              | checkpointer、`thread_id`、time travel、durability 三档     | ⏳ 待搭建 |
+| **L4** | 中断                | human-in-the-loop、重放语义、`Command(resume=...)`          | ⏳ 待搭建 |
+| **L5** | 子图                | 共享/独立 state 翻译、`Command.PARENT`、checkpoint 命名空间 | ⏳ 待搭建 |
+| **L6** | 综合                | 审批 + 崩溃恢复 + 回滚的完整 agent                          | ⏳ 待搭建 |
 
 学完 L1 你会知道：并发写无 reducer 的 channel 为什么报 `InvalidUpdateError`；同一 super-step 的两个节点为什么互相看不到写入；为什么"一短一长两条路径"会让汇合节点执行两次；私有 schema 为什么在流式输出时仍然泄露。
 
