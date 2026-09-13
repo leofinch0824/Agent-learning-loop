@@ -65,6 +65,9 @@ Thumbs.db
 *.db
 checkpoints/
 
+# MLflow datastore
+mlflow-data/
+
 # Temporary files
 *.log
 *.tmp
