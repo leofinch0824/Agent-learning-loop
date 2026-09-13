@@ -1,399 +1,158 @@
-# 项目设计文档 / Project Design Document
+# 课程实现与项目设计
 
-> 适用范围更新（2026-09-13）：下文保留原 LangGraph L1–L6 机制课的设计背景及原有编辑内容，不再作为完整课程规划。当前业务目标见 [learning-goals.md](learning-goals.md)，课程路线见 [curriculum.md](curriculum.md)，目录与新课件实验约定见 [course-implementation.md](course-implementation.md)。原文“全课程无 API”“Node 必须纯函数”“每节点一次 interrupt”等表述的适用限制，以及中断前代码执行次数等矛盾，见新设计的校正清单；编写新课件时采用新设计。
+本文维护课件实现约定、目标目录和业务项目设计。学习目标、课表、排期、主题覆盖、阅读入口和完成状态统一见 [curriculum.md](curriculum.md)；业务术语见 [CONTEXT.md](../CONTEXT.md)。更新：2026-09-13。
 
-## 1. 设计目标 / Design goals
+## 1. 教学与实现原则
 
-这个课程的目标是让工程师**理解 LangGraph 的运行机制**，而不是只会调 API。三个设计原则贯穿始终：
+每课先解释通用问题与方案取舍，再以最小代码暴露运行机制，最后迁移到业务。每个机制都能脱离业务背景独立实验，原代码审查例子继续用于 L1；业务代码不取代基础课件。
 
-### 1.1 核心原语优先 (Core primitives first)
+离线实验断言确定性的行为，真实模型实验检验任务效果。节点可能调用外部系统，故障与副作用要可见；打印顺序或模型输出不强求完全一致。原始 stream chunk、状态、checkpoint 和 trace 是观测材料，结合输入、配置和代码解释；摘要帮助阅读，但不替代原始证据。
 
-LangGraph 的所有能力都建立在三个原语之上：
+架构按课件需要生长：不预先创建空目录、七层抽象、通用插件平台或完整 Web 界面。先用明确接口构建小实验，确有重复再提取。规划、多 Agent、隔离和 MCP 的最小实验仍须实现，业务项目是否采用它们由对照结果决定。
 
-- **State**: 一组带 reducer 的 channel，定义"节点之间能传什么、并发写怎么合并"
-- **Node**: `state -> partial_update` 的纯函数，读全部状态，只返回想改的 key
-- **Edge**: 静态或动态的连线，决定下一个 super-step 并行跑谁
+## 2. 目录职责
 
-后续的所有能力（循环、检查点、中断、子图）都只是这三个原语的组合变形。所以 L1 必须把这三个概念讲透，包括：
+下图为目标结构，除注明“已有”外均为后续计划。课号与总纲一致，路径按能力命名。
 
-- Super-step 的执行循环（调度 → 并行跑 → join → reducer 合并 → checkpoint）
-- Trigger rule（OR 规则：节点被调度 ⟺ 任一入边的源已跑过）
-- 并发写入的合并机制（有 reducer 就合并，无 reducer 就报错）
-
-### 1.2 渐进式依赖 (Progressive dependency)
-
-每一课的机制必须建立在前一课的地基上，形成严格的依赖链：
-
-```
-L1 (State/Node/Edge)
-  ↓ 理解了 Edge 的调度规则，才能理解循环何时终止
-L2 (Control flow: loop/conditional/Command/Send)
-  ↓ 理解了 super-step 的执行边界，才能理解 checkpoint 写在哪
-L3 (Persistence: checkpointer/durability/time travel)
-  ↓ 理解了 checkpoint 的恢复机制，才能理解 interrupt 从何处 resume
-L4 (Interrupt: human-in-the-loop/replay semantics)
-  ↓ 理解了单图的 checkpoint 命名空间，才能理解子图的隔离
-L5 (Subgraph: shared/separate state/Command.PARENT)
-  ↓ 理解了所有机制，才能组合成完整 agent
-L6 (Capstone: 综合实战)
-```
-
-这个依赖链的好处是：如果你理解了 L1-L5，L6 就是"把前面学的拼起来"，没有新概念。
-
-### 1.3 可跑可验证 (Verify, don't trust)
-
-**不要相信文档，相信代码。** 每一课都包含：
-
-1. **可跑的最小代码** (`main.py`)，打印完整的运行时输出（不是摘要，是原始 chunk）
-2. **断言行为的测试** (`test_main.py`)，用 pytest 证明"并发写无 reducer 确实会报错"
-3. **README**，解释"为什么这样设计"、踩坑点、以及对应的官方文档链接
-
-所有课程都是**确定性的**，不依赖 API key，不依赖网络，不依赖随机数。你跑两遍，输出完全一样。
-
----
-
-## 2. 课程架构 / Curriculum architecture
-
-### 2.1 依赖倒置的排序
-
-课程顺序按"后面的概念必须用前面的机制才能讲通"排列：
-
-| 课程   | 核心机制            | 为什么在这个位置                                                                 |
-| ------ | ------------------- | -------------------------------------------------------------------------------- |
-| **L1** | State / Node / Edge | 地基。所有后续能力都是这三样的组合。                                             |
-| **L2** | Loop / Conditional  | 必须先理解 Edge 的调度规则，才能理解循环何时终止、条件边如何路由。               |
-| **L3** | Checkpoint          | 必须先理解 super-step 的边界，才能理解 checkpoint 写在哪、什么时候恢复。         |
-| **L4** | Interrupt           | 必须先理解 checkpoint 的恢复机制，才能理解 interrupt 从何处 resume、为什么重放。 |
-| **L5** | Subgraph            | 必须先理解单图的 checkpoint 命名空间，才能理解子图的隔离与父子图通信。           |
-| **L6** | Capstone            | 综合前面所有机制，搭一个"带审批、可断点续跑、可回滚"的完整 agent。               |
-
-### 2.2 每课的三件套
-
-每一课遵循统一的三件套模式：
-
-```
-lessons/lN_topic/
-├── README.md          # 中文教学文档，讲清"为什么"和"坑在哪"
-├── main.py            # 可跑的最小代码，打印完整执行过程
-└── test_main.py       # pytest 测试，断言所有踩坑行为
-```
-
-#### README.md 的结构
-
-1. **为什么这三个词放在这一课**：讲清这课在整体架构中的位置
-2. **核心概念表格**：原语/机制/一句话职责
-3. **执行模型**：这课的机制如何工作（配图或伪代码）
-4. **N 种写法对比**：如果有多种实现方式，列表格对比优劣
-5. **本课代码要验证的行为**：列出所有 demo 的验证目标
-6. **自己动手（改坏它）**：3-5 个"把代码改坏"的练习
-7. **官方文档对应页**：带链接的清单
-
-#### main.py 的结构
-
-```python
-"""L1 - State / Node / Edge.
-
-Run it:
-    poetry run python lessons/l1_state_node_edge/main.py
-"""
-
-# 1. 原语定义（State schema / Node 函数）
-# 2. Graph builder 函数（每个 demo 一个）
-# 3. Demo 函数（调 trace() 打印完整输出）
-# 4. if __name__ == "__main__": 按序跑所有 demo
-```
-
-关键设计：
-
-- **所有节点内部都 `print()` 自己看到的 state**，证明"同一 super-step 的节点看不到对方的写"
-- **用 `lib.trace()` 包裹执行**，打印每个 super-step 的 `updates` 和 `values`
-- **不做摘要**：输出就是原始的 `stream()` chunk，让读者看到运行时真相
-
-#### test_main.py 的结构
-
-```python
-"""Tests for L1 - State, Node, Edge."""
-
-def test_reducer_merges_concurrent_writes():
-    """两个节点并发写 reducer channel -> 合并成功"""
-    ...
-
-def test_concurrent_writes_without_reducer():
-    """两个节点并发写无 reducer channel -> InvalidUpdateError"""
-    with pytest.raises(InvalidUpdateError, match="..."):
-        ...
-```
-
-每个测试对应 README 里的一个踩坑点，用 `assert` 或 `pytest.raises` 断言。
-
----
-
-## 3. 代码组织 / Code organization
-
-### 3.1 目录结构
-
-```
+```text
 agent-learning/
+├── README.md                         # 当前运行入口与导航（已有）
+├── CLAUDE.md                         # 兼容入口，仅指向项目文档（已有）
+├── CONTEXT.md                        # 业务术语（已有）
 ├── docs/
-│   ├── curriculum.md     # 完整学习路线图（L1-L6）
-│   └── DESIGN.md         # 本文档：设计思路与规划
-├── lib/
-│   ├── __init__.py       # 导出所有 helper
-│   └── helpers.py        # trace/print_state/print_history/build_checkpointer...
+│   ├── curriculum.md                # 唯一课程总纲（已有）
+│   ├── DESIGN.md                    # 本文（已有）
+│   └── references/                  # 四篇背景研究，按总纲入口阅读（已有）
 ├── lessons/
-│   ├── l1_state_node_edge/
-│   │   ├── README.md
-│   │   ├── main.py
-│   │   └── test_main.py
-│   ├── l2_control_flow/     # 待搭建
-│   ├── l3_persistence/      # 待搭建
-│   ├── l4_interrupts/       # 待搭建
-│   ├── l5_subgraphs/        # 待搭建
-│   └── l6_capstone/         # 待搭建
-├── pyproject.toml
-├── README.md            # 项目首页
-└── .gitignore
+│   ├── l0_agent_foundations/
+│   ├── l1_state_node_edge/           # 已有路径与代码保留
+│   ├── l2_agent_loop/
+│   ├── l3_tools_and_execution/
+│   ├── l4_persistence_and_interrupts/
+│   ├── l5_context_and_memory/
+│   ├── l6_planning_and_subgraphs/
+│   ├── l7_observability_and_evaluation/
+│   ├── l8_business_skills/
+│   ├── l9_multimodal_optimization/
+│   └── l10_data_mining_and_capstone/
+├── project/                         # 唯一累积业务实现
+│   ├── main.py                      # 运行/恢复选定流程
+│   ├── schemas.py                   # 案例、版本、反馈、审核和运行记录
+│   ├── model_io.py                  # fake/live、图文 I/O 与 usage
+│   ├── tools.py                     # 项目工具与执行边界
+│   ├── review.py                    # 审核状态和恢复
+│   ├── knowledge.py                 # 知识来源、查找、确认与更新
+│   ├── skill_runtime.py             # 发现、加载、检查、调用、固定版本
+│   ├── optimization.py              # 候选与优化器适配
+│   ├── data_mining.py               # 筛选、去重、导出
+│   ├── workflows/                  # improve / mine_data 两条流程
+│   └── tests/                      # 跨模块和真实流程行为
+├── business_skills/                 # 运行时业务方法，按需建立
+├── knowledge/                       # 规则与已确认案例，引用源和版本
+├── datasets/                        # 小型样例、来源/分组清单、审核后样本
+├── evals/                           # 评价逻辑、运行入口和精简比较报告
+├── extensions/                      # 更深的优化、部署、实际训练实验
+├── lib/                             # 已有 helpers.py / mlflow_utils.py
+├── artifacts/                       # 运行产物；创建时加入忽略规则
+├── docker-compose.yml               # 已有本地 MLflow
+└── pyproject.toml                   # 已有依赖配置
 ```
 
-### 3.2 lib/helpers.py 的设计
+`lessons/` 保存独立机制实验，`project/` 保存累积实现，`datasets/` 保存数据及分组依据，`evals/` 保存评分和结果比较。L10 验收 project，不复制一套综合代码。实际文件按需求拆分，上图不是首次开发必须全部建立的清单。
 
-这个文件存在的唯一目的是**让运行时行为可见**。所有 helper 都遵循"打印，不隐藏"的原则：
+`business_skills/` 是课程 Agent 使用的业务资产，与现有 `.agents/skills/` 的开发辅助技能区分。LangGraph 不因目录里有文件而自动获得 Skill 能力，需由 runtime 显式加载和执行。学习记录放课件，实验结论放 evals 报告，避免新增重复总纲。
 
-| Helper                           | 职责                                    | 为什么需要它                                              |
-| -------------------------------- | --------------------------------------- | --------------------------------------------------------- |
-| `trace(graph, input, ...)`       | 跑图并打印每个 chunk                    | 让学员看到 `stream()` 的原始输出，而不是摘要              |
-| `print_state(graph, config)`     | 打印当前 checkpoint 的 state + metadata | L3 用：证明 `get_state()` 返回什么                        |
-| `print_history(graph, config)`   | 打印 checkpoint 历史                    | L3 用：证明 time travel 的每一步                          |
-| `build_checkpointer(kind, path)` | 构造 memory/sqlite checkpointer         | L3 用：让学员切换持久化后端                               |
-| `thread(thread_id, **extra)`     | 构造 `RunnableConfig`                   | L3 用：简化 `{"configurable": {"thread_id": ...}}` 的写法 |
-| `show_graph(graph)`              | 打印 Mermaid 源码                       | 可视化图结构（贴到 mermaid.live）                         |
+## 3. 单课格式与验证
 
-设计原则：**如果一个 helper 隐藏了什么，它就打印它**。例如 `trace()` 包裹了 `graph.stream()`，但它会把每个 chunk 原样打印出来。
+每课最小结构为 `README.md + main.py + test_main.py`。L0 可以使用小脚本对照加判断练习；有真实外部依赖时按需增加 `live_demo.py`、`test_live.py`、fixture 或隔离配置。L1 现有 MLflow 文件保留，不要求每课复制一套。
 
-### 3.3 测试策略
+README 按同一顺序组织：通用学习目标/前置、方案取舍、运行前预测、执行模型与最小例子、关键反例与修复、跨场景迁移题、运行命令/来源、完成记录。选择有代表性的两三个“改坏它”实验，不按数量制造低价值测试。
 
-所有测试都是**黑盒测试 + 白盒断言**的混合：
+代码按定义、graph builder、独立 demo、入口分段。机制实验优先使用公开 `invoke/stream/get_state` 等接口，不 mock 框架私有调度内核；fake 用于控制模型和工具响应。断言真正对应声明的现象：执行次数直接计数、隔离检查实际访问结果、恢复记录副作用次数，不能只由最终状态倒推过程。
 
-- **黑盒**：调 `graph.invoke()` 或 `graph.stream()`，不 mock 内部
-- **白盒断言**：检查 state 里的具体值、checkpoint 历史的 step 数、异常类型
+| 验证层次      | 必须留下的证据                                                               |
+| ------------- | ---------------------------------------------------------------------------- |
+| 机制实验      | 输入/配置、预期、实际状态或事件、行为断言、失败与修复对照                    |
+| 真实模型/环境 | provider/model、安装版本、请求与响应/usage、工具结果、实际隔离配置或服务条件 |
+| 业务评价      | 固定案例范围、基线/候选版本、评分口径、人工确认、分组结果与失败样本          |
+| 独立掌握      | 学习者先预测、解释偏差，在不同任务中完成迁移并说明取舍                       |
 
-例如：
+未配置的 live 实验可以 skip，但课程记录为“未验证”。只在范围需要时跑相应测试；测试通过不等于真实业务或学习验收完成。无通用“所有课程一秒内完成”或“不测性能”约束：规划、并发和优化对照需要测任务成本与延迟，但不扩展成框架 benchmark。
 
-```python
-def test_asymmetric_fanout_runs_target_twice():
-    """一短一长两条路径 -> 目标节点触发两次"""
-    graph = build_fanout_continuation_graph()
-    result = graph.invoke({"filename": ".env", "findings": [], "verdict": "pass"})
-    # 断言：`extra_step` 只在长路径上跑，但 `reduce` 看到了它的输出
-    assert "extra: security branch needed a follow-up" in result["findings"]
+`lib/helpers.py` 的 trace、print_state、print_history、build_checkpointer、thread、show_graph 用于暴露运行过程；`lib/mlflow_utils.py` 复用本地观测。trace 读回时确认上报完成；span 时间或树形本身不能完全证明 super-step 调度，结合 checkpoint 与直接执行记录判断。
+
+## 4. 业务项目：两条工作流
+
+主项目沉淀业务逻辑，用可定制 Skill 支持模型迭代。开始用少量显式图/子图和本地审核入口组织流程，动态生成任意流程留待证明需要后再做。
+
+具体案例与已有条件以课程总纲为准。PCB 实践先复现现有“PDF/Word → 图片 → 多模态模型 → 工艺参数”流程，再逐项加入证据记录、人工审核和优化。文档转图是否丢页、裁剪是否覆盖目标信息、模型是否误读、推断是否遵循业务规则、结果是否被错误归一化，应分别定位；不将全部错误归到提示词。
+
+参数结果建议记录原文/原始值、规范化值、单位、范围或公差（适用时）、适用对象、证据页/区域，以及“文档明确给出、依据规则推断、未知/冲突”的状态。具体字段由实际参数字典和样本确定；任何业务推断需要引用规则及其版本，避免将合理猜测混入直接抽取事实。
+
+样本接入时先盘点计数单位（文档、页面还是参数记录）、目标字段、现有输出与人工真值/证据，再按来源文档及其派生图片分组。100 条以上样本足以启动样本盘点和小型实验，但独立来源数量与标签质量决定可用的评测范围，暂不预设固定切分比例。可以先选一小组已核验、覆盖不同错误类型的样本调通，再扩展；本轮尚未读取或导入真实样本。
+
+业务评价分开检查参数值、单位/公差等归一化结果、证据支持、遗漏和无依据推断；按参数类别查看退化。具体比较容差及关键字段判定由已确认业务规则决定。以上设计仅细化业务迁移单元，通用主干仍保留独立实验及跨业务迁移题。
+
+```text
+业务资料 / 模型结果
+  → 固定知识与 Skill 版本
+  → 执行、评估、提出归因假设
+  → 人工核验与分流
+      ├─ 改进：提示词/Skill 候选 → 验证 → 审阅 → 发布、拒绝或回退
+      ├─ 数据：候选筛选 → 去重、纠正、复核 → 按训练用途导出
+      └─ 其他：修输入/工具、补规则依据、保持未知
 ```
 
-不测试的东西：
+业务知识包含来源、适用范围/时间、规则版本和代表案例。自动总结先生成候选；经确认后进入知识库。冲突保留双方依据，旧运行固定旧版本，新运行显式选择新版本。检索与 Store 实践复用 L5，初版知识不大时可采用规则 ID/标签；不能把 checkpoint 当知识库。
 
-- LangGraph 内部实现细节（不 mock `_run_step` 之类的私有方法）
-- 性能（这是教学课程，不是 benchmark）
-- 边缘 case（只测核心机制 + 常见坑）
+Skill 初版格式可以是元数据、说明与示例：名称/版本、输入输出、知识引用、工具声明、步骤、结果要求及可优化组件。具体格式在 L8 的加载实验中确定。首版优化说明、示例和步骤；工具代码/依赖演化需要单独测试，再作为扩展。审阅或恢复时不能静默加载最新 Skill。
 
----
+人工队列显示原输入、视觉证据、模型结果、规则、归因假设和建议；支持接受、修改、拒绝、未知/升级核验，保存修改来源。CLI 或本地审核表即可；知识确认、候选晋升和训练数据真值是不同判断，不合成一个“批准”按钮。
 
-## 4. 后续课程规划 / Roadmap for L2-L6
+## 5. 多模态归因与迭代实验
 
-### L2 - Control Flow
+案例记录至少关联 case_id、来源分组、图像/页/区域与内容摘要、图像顺序/分辨率/裁剪/OCR/选页配置、模型参数、业务知识/Skill/prompt 版本、输出、人工判定和 trace。原图等运行数据与可入库小样例区分管理。
 
-**核心概念：**
+归因先作为假设：输入缺损、证据选择错误、视觉理解错误、规则/标签歧义、提示词缺失、工具/流程错误、疑似能力不足、未知，允许多种原因。用单变量干预检验：固定 prompt 修输入、固定图像改指令、复核标签、给定正确证据页作对照。正确证据条件下的局部收益需再检查实际选证据的端到端流程；一次失败不证明必须后训练。
 
-- `add_conditional_edges`：路由表写法 vs 返回 node 名列表（fan-out 并行）
-- 循环终止：条件边返回 `END` + `recursion_limit` / `GraphRecursionError`
-- `Command(goto=..., update=...)` 取代"条件边 + 状态更新"两步
-- `Send` 做 map-reduce（对列表里每个元素 fan-out 一个节点实例）
+优化先跑固定 prompt，再做一次简单反思，最后适配一种现成优化器（课程默认 GEPA），复用执行和评分接口。记录生成、失败、筛选与评测成本，设置调用/时间/费用预算和无收益停止。具体 API 在开发时根据锁定版本核验，不为课程复刻完整优化平台。
 
-**Demo：**
+搜索集供反馈，验证集供选择，测试集用于冻结后的验收；按文档/来源等业务单位分组去重，同图裁剪不能跨集合。小批次用于筛选，最终候选要覆盖完整声明的验证范围和关键规则。最终测试结果一旦用于下一轮改进，要说明测试集已经被使用并重新安排独立验证。
 
-1. 手写 for 循环 vs 图循环，对比可观测性
-2. 用条件边 + `recursion_limit` 实现一个 ReAct 骨架（a=模型，b=工具，用假模型）
-3. `Command` 简化"决策 + 路由"
-4. `Send` 做 parallel map（对列表里每个元素调一次同一个节点）
+固定业务规则和评价器，优化组件单独版本化。先固定视觉预处理，只改变 prompt；之后再分别比较选页/裁剪或 Skill 组件。反思使用了哪些图片、转写或摘要要可追溯；只读文字反馈时明确视觉信息损失。无收益、关键类别退化和评分投机都可以导致候选被拒绝。
 
-**测试：**
+发布记录包含父版本、具体变更、知识/数据/评价器版本、结果和人工结论。留出测试不作为优化循环的自动反馈入口。
 
-- 无终止条件的循环触发 `GraphRecursionError`
-- 条件边正确路由到不同分支
-- `Send` 的 fan-out 数量 == 输入列表长度
+## 6. 训练数据挖掘与后训练接口
 
-### L3 - Persistence
+从离线导出的线上记录或模型结果开始：发现候选→同源/近重复去重→按业务价值/多样性排序→人工核验和纠正→导出。低置信度、模型解释或现有失败答案都不能直接当正确监督。缺证据与标签矛盾先送核验，保留必要正常样本和业务分布覆盖。
 
-**核心概念：**
+| 训练用途                       | 输出要求与验证                                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| SFT                            | 图文输入、人工确认的目标回答、来源/规则/审核记录；验证选定模型模板和图像加载                                |
+| 偏好优化 / Reward Modeling     | 同输入的候选回答、可信偏好关系和理由；平局/证据不足另存；偏好高不自动等于绝对正确                           |
+| 可验证 RL 任务（如 GRPO 实验） | 输入/环境、可核验参考或奖励逻辑、必要工具反馈；用投机答案测试奖励；chosen/rejected 不能代替所有 RL 数据要求 |
 
-- `InMemorySaver` vs `SqliteSaver` vs `PostgresSaver` 的取舍
-- `thread_id` 是恢复的钥匙
-- `get_state` / `get_state_history` 的 API
-- **Time travel**: `update_state()` 后从历史点分叉重跑
-- Durability 三档 `exit / async / sync` 与崩溃恢复的真实语义
+导出器面向选定训练器版本，中间 JSONL 不能替代格式和图像加载验证。模型修正和合成扩充仍需经过相应质量确认。记录筛选理由、人工修改、来源分组及最终用途，检查与优化/留出集合重叠。
 
-**Demo：**
+同等审核额度下比较 Agent 筛选与随机抽样的有效样本数、类别覆盖和人工耗时；小样本只报告观察结果。主线交付经审核的数据素材；实际训练作为扩展回接作业/模型版本和相同评价口径，没有真实训练结果时不能宣称模型提升。
 
-1. 用 `InMemorySaver` 跑完，打印 `get_state_history()` 的每一步
-2. 换成 `SqliteSaver`，kill 掉进程，重启后 `resume`
-3. `update_state()` 改某个历史 checkpoint，证明它分叉出新分支
-4. Durability `exit` mode：进程崩溃时丢失中间步
+## 7. 课件校正与实现待办
 
-**测试：**
+原稿的有效实验已纳入新总纲，以下简化或错误不能带入新课件：
 
-- `thread_id` 隔离：两个 thread 的 state 不互相影响
-- `get_state_history()` 的 step 顺序正确
-- `update_state()` 后的分叉分支独立
+| 原问题                                                      | 实现要求                                                                                        |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Node 一律称纯函数；所有日志顺序确定                         | 区分教学函数与真实外部调用，行为结果与日志时序分别判断                                          |
+| 普通多入边一律叫 full join；“曾执行”作为通用触发规则        | 对照独立入边、显式汇聚和非对称路径；直接记录每轮执行及调用次数                                  |
+| interrupt 前只执行一次；每节点最多一个 interrupt            | 按恢复重跑和稳定的中断调用顺序编写实验；每节点一个仅作入门简化                                  |
+| checkpoint 保证副作用恰好一次；time travel 自动回滚外部世界 | 分别验证完成记录与外部写入之间的故障窗口；撤销需独立操作                                        |
+| Command 默认提速或提供外部事务原子性                        | 讲清更新与路由的组合，验证与静态边并存行为；性能用对照测量                                      |
+| 子图状态不可见只能用 Store 解决                             | 分别学习共享/独立状态、子图 checkpoint 配置与状态检查；Store 用于跨会话记忆，不能混同调试可见性 |
+| 前缀哈希证明缓存命中；压缩阈值/费用倍数普适                 | 以实际 provider 遥测验证收益，特定水位线作为可调实验方案                                        |
+| Planning 必然提高完成率；mutation score 是通用主指标        | 用同任务对照和任务特定评价，不将案例结果泛化                                                    |
+| 草稿引用编号错配                                            | 采用总纲中的直接来源；尚未核验的调查结论不作为行为断言                                          |
 
-### L4 - Interrupt
+L1 的 `test_asymmetric_fanout_runs_target_twice` 尚未直接断言调用次数；本轮未改其代码，开发相应课件时补证据。依赖版本以本地安装核验，当前 lock 被忽略入库，课件发布前补可复现版本记录；现有 Docker 镜像使用 latest，真实实验要记录实际镜像版本。运行产物目录实际创建时再补忽略规则。
 
-**核心概念：**
-
-- `interrupt()` 的**重放语义**：节点 resume 时从头重跑
-- "每节点只调一次 interrupt"规则 + 用条件边做重试循环
-- `Command(resume=...)` 传递人类输入
-- `interrupt_before/after` 静态断点 vs 动态 `interrupt()` 的区别
-
-**Demo：**
-
-1. 审批流：工具调用前暂停 → 人工改参数 → 恢复
-2. 表单收集：循环 prompt 直到输入合法
-3. 证明 interrupt 之前的代码只执行一次（用计数器）
-
-**测试：**
-
-- `interrupt()` 触发后 `invoke()` 返回 `__interrupt__` 标记
-- `Command(resume=...)` 正确传递值
-- 条件边重试循环不会指数级重放
-
-### L5 - Subgraph
-
-**核心概念：**
-
-- 共享 key → 直接把编译好的图 `add_node`
-- 不共享 key → 在节点函数里做状态翻译
-- `Command(graph=Command.PARENT)` 跨层跳转 + 父图必须给共享 key 定义 reducer
-- 子图各自 checkpoint 命名空间导致"父图看不到子图中间态"
-
-**Demo：**
-
-1. Supervisor + 2 workers（共享 `messages` key）
-2. 不共享 key 的子图（在节点函数里翻译状态）
-3. `Command.PARENT` 从子图跳到父图的兄弟节点
-
-**测试：**
-
-- 子图的 checkpoint 与父图隔离
-- 共享 key 的写入被父图看到
-- `Command.PARENT` 正确跳转
-
-### L6 - Capstone
-
-**目标：** 把 L1-L5 拼成一个"带审批、可断点续跑、可回滚"的完整 agent。
-
-**场景：** 一个代码审查 agent，包含：
-
-1. 风格检查 + 安全检查（L1 的 fan-out）
-2. 循环修复直到通过（L2 的 loop）
-3. 审批流（L4 的 interrupt）
-4. 崩溃后恢复（L3 的 checkpoint）
-5. 用子图隔离检查逻辑（L5 的 subgraph）
-
-**故障注入测试：**
-
-- 在不同节点 kill 进程，验证 resume 正确
-- 改历史 checkpoint，验证分叉分支独立
-- 审批拒绝，验证循环重试
-
----
-
-## 5. 设计取舍与风格 / Design tradeoffs
-
-### 5.1 为什么不用真实 LLM？
-
-所有课程都用**假模型**（返回固定字符串的函数），原因：
-
-1. **确定性**：同样的输入永远得到同样的输出，测试才能稳定
-2. **无依赖**：不需要 API key、不需要网络、不需要付费
-3. **快**：跑一遍测试 < 1 秒
-
-L6 的 capstone 会提供一个"可选的真实 LLM 版本"，但测试还是用假模型。
-
-### 5.2 为什么打印原始 chunk 而不是摘要？
-
-很多教程会把 `stream()` 的输出做成摘要：
-
-```python
-# 常见做法（我们不这样做）
-print(f"Step {i}: {node} -> {verdict}")
-```
-
-我们打印原始 chunk：
-
-```python
-# 我们的做法
-for mode, chunk in graph.stream(..., stream_mode=["updates", "values"]):
-    print(f"  {mode:8} {chunk}")
-```
-
-原因：**摘要是解释，chunk 是真相**。如果你想知道"同一 super-step 的节点看不到对方的写"，你需要看到两个 `updates` chunk 在同一轮里出现，而 `values` chunk 在下一轮才包含它们的合并结果。摘要会把这个时序关系抹掉。
-
-### 5.3 为什么用中文 README + 英文代码？
-
-代码和注释用英文（LangGraph 生态的惯例），README 用中文（你的请求）。这个混合风格的好处：
-
-- 代码可以直接贴到 StackOverflow / GitHub issue，不需要翻译
-- README 用母语解释"为什么"，降低理解门槛
-
----
-
-## 6. 贡献指南 / Contributing
-
-如果你要添加 L2-L6 或改进 L1，请遵循：
-
-### 6.1 PR 检查清单
-
-- [ ] 代码可以无依赖运行（`poetry install` 后直接 `poetry run python lessons/lN/main.py`）
-- [ ] 所有测试通过（`poetry run pytest lessons/lN -v`）
-- [ ] README 包含：核心概念、执行模型、踩坑点、官方文档链接
-- [ ] 代码打印完整的运行时输出（用 `lib.trace()`，不做摘要）
-- [ ] 至少 3 个"改坏它"练习
-
-### 6.2 测试覆盖要求
-
-- 每个踩坑点都有一个对应的测试（用 `pytest.raises` 或 `assert`）
-- 测试名以 `test_` 开头，docstring 说明验证什么
-- 所有测试在 CI 里跑（当前还没配 CI，但预留）
-
-### 6.3 文档更新
-
-- 添加新课时，更新 `docs/curriculum.md` 的对应章节
-- 如果添加新的 helper，更新 `lib/helpers.py` 的 docstring
-- 如果发现官方文档有错，在 README 里注明"官方文档 X 页的说法与实际行为不符"
-
----
-
-## 7. 已知问题与未来改进 / Known issues & future improvements
-
-### 7.1 已知问题
-
-- L2-L6 还未搭建
-- 没有 CI（GitHub Actions）自动跑测试
-- `lib.trace()` 在并发节点很多时输出可能乱序（因为 `flush=True` 的时机）
-
-### 7.2 未来改进
-
-- 添加 Mermaid 图的自动截图（用 `mermaid-cli` 生成 PNG）
-- 每课添加一个"常见问题"FAQ 章节
-- L6 添加一个"生产环境 checklist"（什么时候用 Postgres、什么时候用 Redis、如何监控）
-
----
-
-## 8. 参考资源 / References
-
-- [LangGraph 官方文档](https://docs.langchain.com/oss/python/langgraph/)
-- [LangGraph GitHub](https://github.com/langchain-ai/langgraph)
-- [Pregel 论文](https://research.google/pubs/pub37252/)（LangGraph 的 super-step 调度模型来源）
-
----
-
-**最后更新：** 2026-09-10  
-**当前进度：** L1 完成，L2-L6 待搭建
+课程文档仅保留 curriculum 与 DESIGN 两份主文档，四篇 references 保留研究背景，CONTEXT 只维护业务词义。删除的旧方案可从基线提交 `9587537` 恢复；不再在工作区留重复历史副本。
