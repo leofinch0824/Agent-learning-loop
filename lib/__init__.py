@@ -21,14 +21,26 @@ from .mlflow_utils import (
     setup_mlflow,
     spans_overlap,
 )
+from .live_model import (
+    describe_live_config,
+    live_base_url,
+    live_client,
+    live_enabled,
+    live_model_name,
+)
 
 __all__ = [
     "DEFAULT_EXPERIMENT",
     "DEFAULT_TRACKING_URI",
     "banner",
     "build_checkpointer",
+    "describe_live_config",
     "enable_graph_tracing",
     "latest_traces",
+    "live_base_url",
+    "live_client",
+    "live_enabled",
+    "live_model_name",
     "mlflow_reachable",
     "print_history",
     "print_span_tree",
