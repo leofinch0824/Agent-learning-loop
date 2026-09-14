@@ -75,7 +75,7 @@
 | T：工具体系                                  | L2/L3 的错误反馈、并发/冲突、MCP 最小桥接       | 完整流式工具执行器、复杂协议生态                 |
 | C：上下文与记忆                              | L5 的检索/Store、冲突/更新、裁剪/摘要与缓存原理 | 分级压缩调参、缓存策略优化、索引规模化           |
 | L：编排与生命周期                            | L0/L2/L4/L6 的循环、规划、重规划和恢复          | 多 worker 服务、长连接和高并发部署               |
-| O：可观测性                                  | L2 起记录、L7 系统分析 trace/成本/失败          | LangSmith 与 MLflow 深度对照、线上监控平台       |
+| O：可观测性                                  | L2 起记录、L7 系统分析 trace/成本/失败          | 线上监控平台、大规模 trace 存储与分析           |
 | V：验证                                      | L7 的结果/轨迹/人工/judge 与回归；L9 优化评价   | 适合代码任务的 mutation testing、统计评测深化    |
 | G：治理                                      | L3/L4/L7 的执行边界、审核、预算和无进展终止     | 多层组织权限与生产发布系统                       |
 | Skill、自优化、后训练数据                    | L8–L10；知识确认、候选选择和数据审核            | 更多优化器、Skill 工具代码演化、实际 SFT/RL 训练 |
@@ -92,7 +92,7 @@ MCP、规划、多 Agent、长期记忆和隔离的基础已恢复必修。进�
 
 跨业务迁移题：换成与主项目不同的小任务（例如资料检索或代码检查），由学习者独立选 workflow/agent、定义工具与状态、设置退出条件、做一次故障恢复和小型评价。允许复用通用代码，但须说明哪些业务假设不能迁移。
 
-当前仅 L1 有课件，且部分概念和断言待校正；L0、L2–L10 为规划。本轮只调整文档，没有新增课程代码或宣称真实验收完成。
+L0、L1、L2–L7 已有课件：离线机制实验全部可跑、测试通过；真实模型（live）相关实验因未配置 `.env` 统一记「未验证」，配置后可一键补验。L8–L10 为规划，待业务样本就绪后按同一体系构建。观测按渐进式分层：离线课纯 Python 观察，live 运行记 MLflow trace 与费用（L2 起），L7 系统化整合；L1 的 MLflow 文件保留为基线记录。
 
 ## 7. 按主题阅读的资料
 
@@ -103,7 +103,7 @@ MCP、规划、多 Agent、长期记忆和隔离的基础已恢复必修。进�
 - L3：[MCP 文档](https://modelcontextprotocol.io/docs/getting-started/intro)、[规范仓库](https://github.com/modelcontextprotocol/modelcontextprotocol)；实际隔离环境的官方文档在实验选型后记录。
 - L4：[Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)、[Interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts)、[Time travel](https://docs.langchain.com/oss/python/langgraph/use-time-travel)。
 - L5：[Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)、[上下文压缩调研](references/横向拆解Claude%20Code、Codex等六大Agent上下文压缩策略后，我们做了第%207%20个.md)。
-- L7：[MLflow GenAI](https://mlflow.org/docs/latest/genai/)、[Agent 评测](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)、[LangSmith Evaluation](https://docs.langchain.com/langsmith/evaluation)（对照资料，主线沿用 MLflow）。
+- L7：[MLflow GenAI](https://mlflow.org/docs/latest/genai/)、[Agent 评测](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)（主线沿用本地 MLflow）。
 - L9：[GEPA 论文](https://arxiv.org/abs/2507.19457)、[GEPA 文档](https://gepa-ai.github.io/gepa/guides/faq/)；更多优化方法仅作后续对照。
 - L10：[TRL 数据格式](https://huggingface.co/docs/trl/dataset_formats)、[GRPOTrainer](https://huggingface.co/docs/trl/grpo_trainer)。
 - 架构与实践背景：[Harness 拆解](references/万字拆完%20Claude%20Code%2051万行源码后，我才明白什么叫%20Harness.md)、[工具与隔离模式](references/逆向深扒Claude%20Code源码，我发现了什么.md)、[AI Coding 与评测复盘](references/两万字长文_手把手带你趟过_AI_Coding_深水区_编码让位_人退到哪里.md)。

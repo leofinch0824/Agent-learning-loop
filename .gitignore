@@ -35,6 +35,9 @@ ENV/
 env/
 .venv/
 
+# Live model credentials (see README: OpenAI-compatible endpoint config)
+.env
+
 # Poetry
 poetry.lock
 

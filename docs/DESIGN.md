@@ -24,14 +24,14 @@ agent-learning/
 │   ├── DESIGN.md                    # 本文（已有）
 │   └── references/                  # 四篇背景研究，按总纲入口阅读（已有）
 ├── lessons/
-│   ├── l0_agent_foundations/
-│   ├── l1_state_node_edge/           # 已有路径与代码保留
-│   ├── l2_agent_loop/
-│   ├── l3_tools_and_execution/
-│   ├── l4_persistence_and_interrupts/
-│   ├── l5_context_and_memory/
-│   ├── l6_planning_and_subgraphs/
-│   ├── l7_observability_and_evaluation/
+│   ├── l0_agent_foundations/         # 已有
+│   ├── l1_state_node_edge/           # 已有路径与代码保留（含 MLflow 基线文件）
+│   ├── l2_agent_loop/                # 已有
+│   ├── l3_tools_and_execution/       # 已有（含 mcp_server.py fixture）
+│   ├── l4_persistence_and_interrupts/ # 已有（含 crash_runner.py fixture）
+│   ├── l5_context_and_memory/        # 已有
+│   ├── l6_planning_and_subgraphs/    # 已有
+│   ├── l7_observability_and_evaluation/ # 已有（含 MLflow 实战与 genai.evaluate）
 │   ├── l8_business_skills/
 │   ├── l9_multimodal_optimization/
 │   └── l10_data_mining_and_capstone/
@@ -52,7 +52,7 @@ agent-learning/
 ├── datasets/                        # 小型样例、来源/分组清单、审核后样本
 ├── evals/                           # 评价逻辑、运行入口和精简比较报告
 ├── extensions/                      # 更深的优化、部署、实际训练实验
-├── lib/                             # 已有 helpers.py / mlflow_utils.py
+├── lib/                             # 已有 helpers.py / mlflow_utils.py / live_model.py
 ├── artifacts/                       # 运行产物；创建时加入忽略规则
 ├── docker-compose.yml               # 已有本地 MLflow
 └── pyproject.toml                   # 已有依赖配置
@@ -64,7 +64,7 @@ agent-learning/
 
 ## 3. 单课格式与验证
 
-每课最小结构为 `README.md + main.py + test_main.py`。L0 可以使用小脚本对照加判断练习；有真实外部依赖时按需增加 `live_demo.py`、`test_live.py`、fixture 或隔离配置。L1 现有 MLflow 文件保留，不要求每课复制一套。
+每课最小结构为 `README.md + main.py + test_main.py`。L0 可以使用小脚本对照加判断练习；有真实外部依赖时按需增加 `live_demo.py`、`test_live.py`、fixture 或隔离配置（L3 的 `mcp_server.py`、L4 的 `crash_runner.py` 即此类）。观测按渐进式分层（2026-09-14 起实施）：离线机制实验纯 Python + `lib/helpers.py` 本地观察，不碰 MLflow；live 真实模型运行经 `lib/live_model.py`（`.env` 配 OpenAI 兼容端点，未配置自动 skip 并记「未验证」）并轻量记 MLflow trace 与费用（L2 起）；系统化的评测与归因集中在 L7（`mlflow_demo.py` + `test_mlflow.py`）。L1 现有 MLflow 文件保留为基线记录，不要求每课复制一套。
 
 README 按同一顺序组织：通用学习目标/前置、方案取舍、运行前预测、执行模型与最小例子、关键反例与修复、跨场景迁移题、运行命令/来源、完成记录。选择有代表性的两三个“改坏它”实验，不按数量制造低价值测试。
 
@@ -153,6 +153,6 @@ Skill 初版格式可以是元数据、说明与示例：名称/版本、输入�
 | Planning 必然提高完成率；mutation score 是通用主指标        | 用同任务对照和任务特定评价，不将案例结果泛化                                                    |
 | 草稿引用编号错配                                            | 采用总纲中的直接来源；尚未核验的调查结论不作为行为断言                                          |
 
-L1 的 `test_asymmetric_fanout_runs_target_twice` 尚未直接断言调用次数；本轮未改其代码，开发相应课件时补证据。依赖版本以本地安装核验，当前 lock 被忽略入库，课件发布前补可复现版本记录；现有 Docker 镜像使用 latest，真实实验要记录实际镜像版本。运行产物目录实际创建时再补忽略规则。
+L1 的 `test_asymmetric_fanout_runs_target_twice` 已于 2026-09-14 补直接证据：用 `stream(mode="updates")` 逐 chunk 统计 `reduce` 的任务完成次数并断言为 2，不再由 findings 内容倒推。依赖版本以本地安装核验，当前 lock 被忽略入库，课件发布前补可复现版本记录；现有 Docker 镜像使用 latest，真实实验要记录实际镜像版本。运行产物目录实际创建时再补忽略规则。
 
 课程文档仅保留 curriculum 与 DESIGN 两份主文档，四篇 references 保留研究背景，CONTEXT 只维护业务词义。删除的旧方案可从基线提交 `9587537` 恢复；不再在工作区留重复历史副本。

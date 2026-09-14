@@ -40,7 +40,7 @@ L1 回答"一个 super-step 里发生什么"，L2 回答"循环怎么转"，本�
 | 副作用载体 | append-only 日志文件，每行可直接数 | "落了没有、落了几次"用 `wc -l` 级别的事实回答，不从终态倒推 | 真实 DB 行 / HTTP 调用 + 遥测 |
 | 幂等方案 | 执行 ledger：`thread_id + task_id` 键的 done-marker | 实测 **task_id 跨进程崩溃+恢复是稳定的**（由父 checkpoint 确定性派生），键天然防误杀 | DB 唯一约束 / 幂等 token / outbox |
 | 审核载体 | 动态 `interrupt()`（payload 运行时算）为主，静态 `interrupt_before` 对照 | payload 携带提案内容、resume 值携带人的裁决，是人机协议的自然形状 | 静态断点用于调试；审批 UI 挂在 interrupt payload 上 |
-| 观测手段 | `print_state` / `print_history` / 原始 stream chunk / 外部日志行 | 本课按课程渐进设计**不用 MLflow**，lib helpers 已够暴露暂停点与历史 | LangSmith / MLflow（L7 系统化） |
+| 观测手段 | `print_state` / `print_history` / 原始 stream chunk / 外部日志行 | 本课按课程渐进设计**不用 MLflow**，lib helpers 已够暴露暂停点与历史 | MLflow trace（L7 系统化） |
 | checkpointer | memory 与 sqlite 各用一遍同一图 | 证明"持久化在文件不在对象"，并把崩溃实验架在 sqlite 上 | Postgres（连接池与运维见总纲 §5 深入边界，本课未实测） |
 
 **核心取舍一句话：所有"恰好一次/会不会重跑"的断言都以外部文件的行数为准，框架给的每层保证（checkpoint、durability、interrupt、fork）分别用实验定价。**

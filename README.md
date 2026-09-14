@@ -6,22 +6,48 @@
 - [实现设计](docs/DESIGN.md)：目标目录、课件约定、业务工作流、实验设计与待校正项。
 - [业务术语](CONTEXT.md)：业务知识、Skill、归因假设、优化候选和训练样本的区别。
 
-当前只有 [L1](lessons/l1_state_node_edge/README.md) 有课件实现，含本地 MLflow 示例；部分概念与断言待校正。其他单元为课程规划，完整进度由课程总纲维护。
+L0–L7 已有课件（L8–L10 为规划，完整进度由课程总纲维护）。各课 README 按 DESIGN.md 固定章节组织，离线机制实验全部可跑；真实模型（live）实验需在 repo 根目录配置 `.env`，未配置时自动 skip 并在各课完成记录中标注「未验证」。
 
-## 运行现有课件
+| 单元 | 课件 | 一句话主题 |
+| --- | --- | --- |
+| L0 | [lessons/l0_agent_foundations](lessons/l0_agent_foundations/README.md) | 单次调用 / 固定工作流 / Agent 循环：何时值得上 Agent |
+| L1 | [lessons/l1_state_node_edge](lessons/l1_state_node_edge/README.md) | State/Node/Edge、reducer、super-step（含 MLflow 基线） |
+| L2 | [lessons/l2_agent_loop](lessons/l2_agent_loop/README.md) | 原生循环与图循环、结构化工具调用、四种终止 |
+| L3 | [lessons/l3_tools_and_execution](lessons/l3_tools_and_execution/README.md) | 工具契约、权限执行分离、沙箱、MCP 协议边界 |
+| L4 | [lessons/l4_persistence_and_interrupts](lessons/l4_persistence_and_interrupts/README.md) | checkpoint/durability、interrupt 审核、真崩溃恢复与幂等 |
+| L5 | [lessons/l5_context_and_memory](lessons/l5_context_and_memory/README.md) | 上下文四层分工、Store 记忆、裁剪/摘要、缓存口径 |
+| L6 | [lessons/l6_planning_and_subgraphs](lessons/l6_planning_and_subgraphs/README.md) | Plan-and-Execute、Send 扇出、子图与 Command.PARENT |
+| L7 | [lessons/l7_observability_and_evaluation](lessons/l7_observability_and_evaluation/README.md) | 结果/轨迹评价、judge 校准、失败归因、反思闭环 |
+
+## 运行课件
+
+离线机制实验（无网络、确定性 fake 驱动）：
 
 ```bash
 poetry install
-poetry run python lessons/l1_state_node_edge/main.py
-poetry run pytest lessons/l1_state_node_edge/test_main.py -v
+poetry run python lessons/l1_state_node_edge/main.py   # 换成任意一课的 main.py
+poetry run pytest lessons/ -v                           # 全部课程；或 lessons/l2_agent_loop 指定单课
 ```
 
-本地 MLflow 实验空间为 `agent-loop`，服务数据在被忽略的 `mlflow-data/`：
+真实模型实验（可选；OpenAI 兼容端点，可指向 Qwen 等服务）——在 repo 根目录建 `.env`：
+
+```bash
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1   # 或兼容服务地址
+LIVE_MODEL_NAME=gpt-4o-mini                  # 或业务模型名
+```
+
+```bash
+poetry run python lessons/l2_agent_loop/live_demo.py    # 各课 live_demo.py
+poetry run pytest lessons/l2_agent_loop/test_live.py -v # 未配置时自动 skip
+```
+
+本地 MLflow 实验空间为 `agent-loop`，服务数据在被忽略的 `mlflow-data/`。L2 起 live 运行轻量记 trace 与费用，L7 系统化使用：
 
 ```bash
 docker compose up -d
-poetry run python lessons/l1_state_node_edge/mlflow_demo.py
-poetry run pytest lessons/l1_state_node_edge/test_mlflow.py -v
+poetry run python lessons/l7_observability_and_evaluation/mlflow_demo.py
+poetry run pytest lessons/l7_observability_and_evaluation/test_mlflow.py -v
 ```
 
 MLflow 不可达时集成测试会跳过；跳过不代表真实验证通过。离线机制实验与真实模型实验分别记录结果，后者按课件明确模型配置和调用预算。

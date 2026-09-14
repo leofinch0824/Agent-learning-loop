@@ -28,7 +28,7 @@
 | 并行载体 | Send 运行时扇出 vs 编译期静态扇出（demo 1b 的 4 个 `add_node`） | N 何时确定是二者的唯一区别，对照后不再混淆 | 混合：固定主干 + Send 处理动态批次 |
 | 子图状态 | 共享 schema 与独立 schema + 翻译各写一遍 | 共享的代价（无私有空间、出口重放）只有亲手数过才记得 | 大多选独立 schema + 翻译层，边界显式 |
 | 父图路由 | `Command(goto=..., update=..., graph=Command.PARENT)` | "从子图内部改父图路由"这一种情形的原生载体 | 子图正常退出 + 父图条件边（可静态分析） |
-| 子图观测 | checkpoint 命名空间寻址 + `stream(subgraphs=True)` 发现 ns | 完成后的子图状态只有这一条官方读出路径（probed） | LangSmith/MLflow trace（L7），不替代状态检查 |
+| 子图观测 | checkpoint 命名空间寻址 + `stream(subgraphs=True)` 发现 ns | 完成后的子图状态只有这一条官方读出路径（probed） | MLflow trace（L7），不替代状态检查 |
 | 重规划 | 失败以 envelope 进入 results，按需触发 replanner，`MAX_REPLANS` 预算 | 重规划是协调开销，只在失败时付；预算防死循环 | 真实 LLM replanner + 评测护栏 |
 | fake model | 纯函数/队列脚本，`MODEL_JOURNAL` 记录每次调用的完整 context | 计数与"worker 见过什么"都是 journal 直查 | 同签名 live 适配器（本课离线，见完成记录） |
 
@@ -120,7 +120,7 @@ poetry run pytest lessons/l6_planning_and_subgraphs -v        # 12 项机制测�
 
 - 版本（本地实测）：Python 3.12.8，langgraph 1.2.11，langgraph-checkpoint 4.2.0，langchain-core 1.6.2，pytest 9.1.1。
 - 文档：本页顶部三个官方链接（curriculum §7 的 L1/L2/L6 行）；背景见 L1/L2 README 的 super-step 与 Command 记录。
-- 本课按渐进设计不配 MLflow/LangSmith 文件：观测全部来自 lib helpers（`print_history`/`thread`/`build_checkpointer`）与本地 stream chunk、checkpoint `metadata.step`。
+- 本课按渐进设计不配 MLflow 文件：观测全部来自 lib helpers（`print_history`/`thread`/`build_checkpointer`）与本地 stream chunk、checkpoint `metadata.step`。
 
 ## 完成记录
 

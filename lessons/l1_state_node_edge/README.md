@@ -102,7 +102,7 @@ poetry run pytest lessons/l1_state_node_edge -v
 
 ## MLflow 实战：把 super-step 看进 trace 里
 
-本课起每课配一个 `mlflow_demo.py`，对着本地 MLflow 服务器验证同一批机制（实验空间 `agent-loop`）：
+本课的 MLflow 实战保留为当时建立基线的记录。后续课程按渐进式观测设计分层：离线机制实验用纯 Python + `lib/helpers.py` 本地观察，live 真实模型运行轻量记 MLflow trace 与费用（L2 起），系统化的评测与归因在 L7 展开（实验空间同为 `agent-loop`）：
 
 ```bash
 docker compose up -d                                            # 起 MLflow（repo 根目录，端口 5000）

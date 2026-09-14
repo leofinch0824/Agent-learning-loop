@@ -131,25 +131,28 @@ def test_nodes_cannot_see_parallel_writes_in_same_step():
 
 
 def test_asymmetric_fanout_runs_target_twice():
-    """A node reachable by a short path and a long path fires twice."""
+    """A node reachable by a short path and a long path fires exactly twice."""
     # The graph is:
     #   intake -> style_check -> reduce -> END
     #   intake -> security_check -> extra_step -> reduce -> END
     # The style path is shorter by one hop. `reduce` triggers the moment the style
     # path lands, then triggers AGAIN when the long path arrives.
     graph = build_fanout_continuation_graph()
+    # Direct execution count: every `updates` chunk is ONE completed task, so we
+    # count the chunks where `reduce` is the node that ran -- no inference from
+    # final state (DESIGN.md section 7 asks for exactly this evidence).
+    reduce_runs = 0
+    for chunk in graph.stream(
+        {"filename": ".env", "findings": [], "verdict": "pass"}, stream_mode="updates"
+    ):
+        assert isinstance(chunk, dict)
+        if "reduce" in chunk:
+            reduce_runs += 1
+    assert reduce_runs == 2, f"reduce ran {reduce_runs} times, expected 2"
+    # Sanity: both branches actually produced findings along the way.
     result = graph.invoke({"filename": ".env", "findings": [], "verdict": "pass"})
-    # `reduce` wrote twice, so the final findings list contains TWO reduce outputs.
-    # NOTE: the graph above does NOT append "reduce" to findings, so we need a
-    # different signal. We can infer it ran twice by checking that `extra_step` ran
-    # (only on one branch) yet `reduce` saw both branches' outputs.
-    assert "extra: security branch needed a follow-up" in result["findings"]
-    # The count of how many times reduce ran is NOT directly visible in the output,
-    # but we can infer it from checkpoint history or a custom count. Instead, let's
-    # just verify that the fan-out actually happened:
     assert "security: hardcoded token" in result["findings"]
     assert "style: nothing to check" in result["findings"]
-    # and that the extra step ran:
     assert "extra: security branch needed a follow-up" in result["findings"]
 
 
