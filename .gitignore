@@ -71,6 +71,11 @@ checkpoints/
 # MLflow datastore
 mlflow-data/
 
+# Documentation site (zensical)
+# site/ 为构建产物；site-src/ 为 sync-site-src.py 生成的发布树，克隆后重新生成即可
+site/
+site-src/
+
 # Temporary files
 *.log
 *.tmp

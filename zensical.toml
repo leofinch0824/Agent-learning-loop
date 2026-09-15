@@ -1,0 +1,31 @@
+# Zensical 站点配置：文档树在 site-src/（符号链接指回仓库各处），构建产物在 site/
+# 用法：poetry run zensical serve  →  http://localhost:8000
+[project]
+site_name = "Agent Learning"
+docs_dir = "site-src"
+
+[project.theme]
+language = "zh"
+features = [
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "content.code.copy",
+  "content.code.select",
+  "search.highlight",
+]
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.line_spans = "__span"
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.snippets.base_path = ".."
+pymdownx.snippets.check_paths = true
+pymdownx.superfences = {}
+pymdownx.details = {}
+pymdownx.tabbed.alternate_style = true
