@@ -1,0 +1,71 @@
+# Node
+node_modules/
+dist/
+.next/
+out/
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+spike/*/target/
+spike/*/gen/
+
+# Env（BYOK Key 永不入库）
+.env
+.env.*
+
+# 本地数据与测试书库（用户隐私：书籍与划线永不入库）
+*.epub
+*.pdf
+data/
+*.sqlite
+*.sqlite3
+*.jsonl.bak
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# agents
+.claude
+.agents
+
+# 测试夹具例外：fixtures 下的样例书允许入库
+!fixtures/**/*.epub
+
+# 本机 harness/hook 配置（.claude/.agents 既有惯例的同类）
+.codex
+.impeccable/config.local.json
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
