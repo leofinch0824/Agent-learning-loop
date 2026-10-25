@@ -36,10 +36,11 @@ TREES: list[tuple[str, str, set[str]]] = [
 ]
 
 # 站点根部的单文件：(源文件, 站内路径)
+# 注意：CLAUDE.md 不发布——其中的相对链接（如 README.md）面向仓库内
+# 读取的 agent，发布成网页会解析为站内断链并触发 build 警告
 ROOT_FILES: list[tuple[str, str]] = [
     ("README.md", "site-src/index.md"),
     ("CONTEXT.md", "site-src/CONTEXT.md"),
-    ("CLAUDE.md", "site-src/CLAUDE.md"),
 ]
 
 SKIP_PARTS = {"__pycache__"}
@@ -126,6 +127,13 @@ def main() -> int:
     for src_name, dest_name in ROOT_FILES:
         if publish_file(REPO_ROOT / src_name, REPO_ROOT / dest_name):
             print(f"published {dest_name}")
+            changed += 1
+    # 清理根部不再发布的旧文件（只处理 .md，不动目录）
+    expected_root = {REPO_ROOT / dest for _, dest in ROOT_FILES}
+    for old in (REPO_ROOT / "site-src").glob("*.md"):
+        if old not in expected_root:
+            old.unlink()
+            print(f"removed stale {old.relative_to(REPO_ROOT)}")
             changed += 1
 
     print("site-src 已同步" if changed else "site-src 已是最新（无变更）")

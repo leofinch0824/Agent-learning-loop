@@ -52,6 +52,24 @@ poetry run pytest lessons/l7_observability_and_evaluation/test_mlflow.py -v
 
 MLflow 不可达时集成测试会跳过；跳过不代表真实验证通过。离线机制实验与真实模型实验分别记录结果，后者按课件明确模型配置和调用预算。
 
+## 本地文档站（可选）
+
+课件与源码可渲染成带导航、搜索和中文界面的本地站点浏览（[Zensical](https://zensical.org)）：
+
+```bash
+poetry install                    # docs 依赖组含 zensical
+python scripts/sync-site-src.py   # 生成 site-src/ 发布树（不入库）
+poetry run zensical serve         # http://localhost:8000
+```
+
+站点覆盖全部课程 README、`docs/` 资料，以及每个 `.py`（含测试与 `lib/` 共享代码）的语法高亮源码页。修改源文件后重跑一次 sync 即可热刷新；想全程自动，另开一个终端：
+
+```bash
+python scripts/watch-sync.py      # 监视 lessons/docs/lib 变更，自动发布 → 浏览器即时刷新
+```
+
+`site/`（构建产物）与 `site-src/`（发布树）均为生成内容，已忽略不入库。站点已知限制与坑位记录在 `scripts/sync-site-src.py` 的文档字符串里。
+
 ## 文档与资料
 
 课程内容只在总纲维护，目录与实验约定只在实现设计维护；`docs/references/` 保留四篇背景研究，由总纲按主题导航。本地 `llms.txt` 是被忽略的官方文档索引，可以检索主题后定位原文。
